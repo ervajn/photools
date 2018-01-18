@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 """
-Reverse image search tool
-https://github.com/ml4a/ml4a-guides/blob/f31929024c51bdc409b52e91a77725291fa16564/notebooks/image-search.ipynb
+https://github.com/ml4a/ml4a-guides/blob/master/notebooks/image-search.ipynb
+https://github.com/ml4a/ml4a-guides/blob/master/notebooks/image-tsne.ipynb
 """
 import argparse
 import logging
+import math
 import fnmatch
 import os
 import random
@@ -18,7 +19,8 @@ import sklearn.decomposition
 import scipy.spatial
 import tqdm
 import PIL
-
+import sklearn.manifold
+import rasterfairy
 
 logger = logging.getLogger(__name__)
 
@@ -98,12 +100,7 @@ def show_closest_images(pca_features, images, query_image_idx):
     for x in idx_closest:
         print('  {}'.format(images[x]))
 
-    # display the query and resulting images
-    matplotlib.pyplot.figure(figsize = (16,12))
-    matplotlib.pyplot.imshow(results_image)
-    matplotlib.pyplot.title("Query image and result images")
-
-    matplotlib.pyplot.show()
+    return results_image
 
 def get_file_index(images, pattern):
     if pattern.isdigit() and int(pattern) < len(images):
@@ -114,6 +111,80 @@ def get_file_index(images, pattern):
     logger.error('Found no image matching {}'.format(pattern))
     return None
 
+def calculate_tsne(images, pca_features, num_images_to_use=4*256):
+    if len(images) > num_images_to_use:
+        sort_order = sorted(random.sample(xrange(len(images)), num_images_to_use))
+        images = [images[i] for i in sort_order]
+        pca_features = [pca_features[i] for i in sort_order]
+
+    X = np.array(pca_features)
+    tsne = sklearn.manifold.TSNE(n_components=2, learning_rate=150, perplexity=30, angle=0.2, verbose=2).fit_transform(X)
+
+    tx, ty = tsne[:,0], tsne[:,1]
+    tx = (tx-np.min(tx)) / (np.max(tx) - np.min(tx))
+    ty = (ty-np.min(ty)) / (np.max(ty) - np.min(ty))
+
+    return images, tsne, tx, ty
+
+def plot_tsne(images, tsne, tx, ty):
+    width = 4000
+    height = 3000
+    max_dim = 100
+
+    full_image = PIL.Image.new('RGBA', (width, height))
+    for img, x, y in tqdm.tqdm(zip(images, tx, ty)):
+        tile = PIL.Image.open(img)
+        rs = max(1, tile.width/max_dim, tile.height/max_dim)
+        tile = tile.resize((int(tile.width/rs), int(tile.height/rs)), PIL.Image.ANTIALIAS)
+        full_image.paste(tile, (int((width-max_dim)*x), int((height-max_dim)*y)), mask=tile.convert('RGBA'))
+
+    return full_image
+
+def plot_grid(images, tsne, tx, ty):
+    nx = int(math.ceil(math.sqrt(len(images))))
+    ny = nx
+
+    grid_assignment = rasterfairy.transformPointCloud2D(tsne, target=(nx, ny))
+
+    tile_width = 144
+    tile_height = 112
+
+    full_width = tile_width * nx
+    full_height = tile_height * ny
+    aspect_ratio = float(tile_width) / tile_height
+
+    grid_image = PIL.Image.new('RGB', (full_width, full_height))
+
+    for img, grid_pos in tqdm.tqdm(zip(images, grid_assignment[0].tolist())):
+        idx_x, idx_y = grid_pos
+        x, y = tile_width * idx_x, tile_height * idx_y
+        tile = PIL.Image.open(img)
+        tile_ar = float(tile.width) / tile.height  # center-crop the tile to match aspect_ratio
+        if (tile_ar > aspect_ratio):
+            margin = 0.5 * (tile.width - aspect_ratio * tile.height)
+            tile = tile.crop((margin, 0, margin + aspect_ratio * tile.height, tile.height))
+        else:
+            margin = 0.5 * (tile.height - float(tile.width) / aspect_ratio)
+            tile = tile.crop((0, margin, tile.width, margin + float(tile.width) / aspect_ratio))
+        tile = tile.resize((tile_width, tile_height), PIL.Image.ANTIALIAS)
+        grid_image.paste(tile, (int(x), int(y)))
+
+    return grid_image
+
+def do_sne(images, pca_features, filenamebase):
+    images, tsne, tx, ty = calculate_tsne(images, pca_features)
+    tsne_image = plot_tsne(images, tsne, tx, ty)
+    tsne_image.save(filenamebase + '_tsne.jpg')
+    grid_image = plot_grid(images, tsne, tx, ty)
+    grid_image.save(filenamebase + '_grid.jpg')
+    return tsne_image, grid_image
+
+def show_images(images):
+    for i in images:
+        matplotlib.pyplot.figure(figsize = (16,12))
+        matplotlib.pyplot.imshow(i)
+    matplotlib.pyplot.show()        
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Calculate image features',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -123,7 +194,14 @@ def parse_arguments():
     parser.add_argument('-p', '--pca_features_file', default='pca_features.p',
                         help='The PCA features file name')
     parser.add_argument('-x', '--index', default='',
-                        help='Find closest images to this image')    
+                        help='Find closest images to this image')
+
+    parser.add_argument('-t', '--tsne', default='',
+                        help='Filename to save TSNE image')
+
+    parser.add_argument('-s', '--show', action='store_true',
+                        help='Show the resulting images')
+    
     args = parser.parse_args()   
     return args
 
@@ -133,12 +211,19 @@ def _main():
     logging.basicConfig(level=level)
     
     images, pca_features = get_pca_features(args.images_path, args.pca_features_file)
-
+    images_to_show = []
+    
     if args.index:
         ix = get_file_index(images, args.index)
         if ix is not None:
-            show_closest_images(pca_features, images, ix)
+            images_to_show.append(show_closest_images(pca_features, images, ix))
 
+    if args.tsne:
+        tsne, grid = do_sne(images, pca_features, args.tsne)
+        images_to_show += [tsne, grid]
 
+    if args.show:
+        show_images(images_to_show)
+            
 if __name__ == '__main__':
     _main()
