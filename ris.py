@@ -22,8 +22,6 @@ import PIL
 import sklearn.manifold
 import rasterfairy
 
-logger = logging.getLogger(__name__)
-
 
 def get_image(path, target_size):
     img = keras.preprocessing.image.load_img(path, target_size=target_size)
@@ -42,7 +40,7 @@ def find_images(images_path, max_num_images=0):
               os.walk(images_path) for f in filenames if os.path.splitext(f)[1].lower() in ['.jpg','.png','.jpeg']]
     if max_num_images > 0 and max_num_images < len(images):
         images = [images[i] for i in sorted(random.sample(xrange(len(images)), max_num_images))]
-    logger.debug('Using {} images from {}'.format(len(images), images_path))
+    logging.debug('Using {} images from {}'.format(len(images), images_path))
     return images
 
 def _extract_pca_features(feat_extractor, images, n_components=300):
@@ -60,13 +58,13 @@ def _extract_pca_features(feat_extractor, images, n_components=300):
 
 def get_pca_features(images_path, pca_features_file):
     if os.path.exists(pca_features_file):
-        logger.debug('Features file already exists. Loading {} and ignoring images path {}'.
+        logging.info('Features file already exists. Loading {} and ignoring images path "{}"'.
                      format(pca_features_file, images_path))
         images, pca_features = pickle.load(open(pca_features_file, 'r'))
     else:
         images = find_images(images_path)
         if not images:
-            logger.error('No images found in {}'.format(images_path))
+            logging.error('No images found in {}'.format(images_path))
             exit(-1)    
         feat_extractor = get_feature_extractor()
         pca_features = _extract_pca_features(feat_extractor, images)
@@ -94,7 +92,7 @@ def show_closest_images(pca_features, images, query_image_idx):
     idx_closest = get_closest_images(pca_features, query_image_idx)
     results_image = get_concatenated_images(images, [query_image_idx] + idx_closest, 300)
     
-    logger.debug('Closest to {}: {}'.format(images[query_image_idx], [images[x] for x in idx_closest]))
+    logging.debug('Closest to {}: {}'.format(images[query_image_idx], [images[x] for x in idx_closest]))
 
     print('Closest to {}'.format(images[query_image_idx]))
     for x in idx_closest:
@@ -108,7 +106,7 @@ def get_file_index(images, pattern):
     for i, path in enumerate(images):
         if fnmatch.fnmatch(path, pattern):
             return i
-    logger.error('Found no image matching {}'.format(pattern))
+    logging.error('Found no image matching {}'.format(pattern))
     return None
 
 def calculate_tsne(images, pca_features, num_images_to_use=4*256):
