@@ -2,15 +2,14 @@
 from __future__ import print_function
 import argparse
 import logging
-import math
-import os
 import cPickle as pickle
-import PIL
-from PIL import ImageFont
-from PIL import ImageDraw
+import os
 import sklearn.cluster
 import sklearn.metrics
 import collections
+
+import plot_grid
+
 
 def do_kmeans(features, n_clusters):
     logging.debug('Running kmeans. len(features)={}, n_clusters={}'.format(len(features), n_clusters))
@@ -27,27 +26,6 @@ def do_kmeans(features, n_clusters):
         medoids.append(class_members[medoid[0]])
     assert [k for k,v in collections.Counter(medoids).items() if v>1] == [], "duplicates in medoids"
     return membership, medoids
-
-def plot_grid(images, texts, tile_size):
-    font_height = 8
-    font = PIL.ImageFont.truetype("/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-B.ttf", font_height)
-    n = int(math.ceil(math.sqrt(len(images))))
-    full_size = tile_size * n
-    grid_image = PIL.Image.new('RGB', (full_size, full_size))
-    for i, img in enumerate(images):
-        x, y = (i % n) * tile_size, (i / n) * tile_size
-        tile = PIL.Image.open(img)
-        margin = abs((tile.width - tile.height) / 2)
-        if (tile.width > tile.height):
-            tile = tile.crop((margin, 0, margin + tile.height, tile.height))
-        else:
-            tile = tile.crop((0, margin, tile.width, margin + tile.width))
-        tile = tile.resize((tile_size, tile_size), PIL.Image.ANTIALIAS)
-        draw = PIL.ImageDraw.Draw(tile)
-        draw.text((0, tile_size - font_height), texts[i], (255, 255, 255), font=font)
-        grid_image.paste(tile, (x, y))
-
-    return grid_image
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Calculate image features',
@@ -75,7 +53,7 @@ def _main():
     membership, medoids = do_kmeans(features=pca_features, n_clusters=args.n_clusters)
 
     texts = ["{} {} {}".format(i, membership.tolist().count(i), os.path.basename(images[x])) for i, x in enumerate(medoids)]
-    grid = plot_grid([images[x] for x in medoids], texts, args.size)
+    grid = plot_grid.plot_grid([images[x] for x in medoids], texts, args.size)
 
     logging.debug('Saving grid image to {}'.format(args.file))
     grid.save(args.file)
