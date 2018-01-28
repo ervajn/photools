@@ -10,12 +10,11 @@ from PIL import ImageDraw
 
 
 def plot_grid(images, texts=None, tile_size=120):
-    font_height = 8
-    font = PIL.ImageFont.truetype("/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-B.ttf", font_height)
     n = int(math.ceil(math.sqrt(len(images))))
     full_size = tile_size * n
     grid_image = PIL.Image.new('RGB', (full_size, full_size))
     for i, img in enumerate(images):
+        logging.debug('Image {}({}) {}'.format(i, len(images), img))
         x, y = (i % n) * tile_size, (i / n) * tile_size
         tile = PIL.Image.open(img)
         margin = abs((tile.width - tile.height) / 2)
@@ -26,7 +25,12 @@ def plot_grid(images, texts=None, tile_size=120):
         tile = tile.resize((tile_size, tile_size), PIL.Image.ANTIALIAS)
         draw = PIL.ImageDraw.Draw(tile)
         if texts:
-            draw.text((0, tile_size - font_height), texts[i], (255, 255, 255), font=font)
+            for font_height in range(tile_size/5, 1, -1):
+                font = PIL.ImageFont.truetype("/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-B.ttf", font_height)
+                text_width, _ = font.getsize(texts[i])
+                if text_width < tile_size:
+                    break
+            draw.text((0, tile_size - font_height), texts[i], (255, 255, 0), font=font)
         grid_image.paste(tile, (x, y))
 
     return grid_image
@@ -38,9 +42,11 @@ def parse_arguments():
     parser.add_argument('-d', '--directory', default='.',
                         help='The directory with pictures')
     parser.add_argument('-f', '--file', default='grid.jpg',
-                        help='Resulting grid image file name')   
+                        help='Resulting grid image file name')
     parser.add_argument('-s', '--size', type=int, default=160,
                         help='Size of each tile')
+    parser.add_argument('-t', '--text', action='store_true', default=False,
+                        help='Print information text on each image')
 
     args = parser.parse_args()
     return args
@@ -56,8 +62,9 @@ def _main():
     if images == []:
         logging.error('No images found in {}'.format(args.directory))
         exit(-1)
-       
-    grid = plot_grid(images, texts=[os.path.basename(f) for f in images], tile_size=args.size)
+
+    texts=[os.path.basename(f) for f in images] if args.text else None
+    grid = plot_grid(images, texts=texts, tile_size=args.size)
 
     if args.file:
         logging.debug('Saving grid image to {}'.format(args.file))

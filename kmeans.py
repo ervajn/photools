@@ -28,7 +28,7 @@ def do_kmeans(features, n_clusters):
     return membership, medoids
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='Calculate image features',
+    parser = argparse.ArgumentParser(description='Classify images using K-means',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-v', '--verbose', action='count')
     parser.add_argument('-p', '--pca_features_file', default='pca_features.p',
