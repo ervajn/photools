@@ -10,6 +10,7 @@ import fnmatch
 import os
 import random
 import cPickle as pickle
+import csv
 import numpy as np
 import matplotlib.pyplot
 import keras.preprocessing.image
@@ -22,6 +23,11 @@ import PIL
 import sklearn.manifold
 import rasterfairy
 
+def write_csv(images, features):
+    with open('image_features.csv', 'wb') as csvfile:
+        csvwriter = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
+        for i, f in zip(images, features):
+            csvwriter.writerow([i] + f.tolist())
 
 def get_image(path, target_size):
     img = keras.preprocessing.image.load_img(path, target_size=target_size)
@@ -31,7 +37,9 @@ def get_image(path, target_size):
     return img, x
 
 def get_feature_extractor():
-    model = keras.applications.VGG16(weights='imagenet', include_top=True)   
+    model = keras.applications.VGG16(weights='imagenet', include_top=True)
+    #model = keras.applications.VGG19(weights='imagenet', include_top=True)
+    logging.debug("Output layer: {}".format(model.get_layer("fc2").output))
     feat_extractor = keras.models.Model(inputs=model.input, outputs=model.get_layer("fc2").output)
     return feat_extractor
 
@@ -44,15 +52,23 @@ def find_images(images_path, max_num_images=0):
     return images
 
 def _extract_pca_features(feat_extractor, images, n_components=300):
+    logging.debug('Extracting features from {} images'.format(len(images)))
     features = []
     for image_path in tqdm.tqdm(images):
         img, x = get_image(image_path, target_size=feat_extractor.input_shape[1:3])
         feat = feat_extractor.predict(x)[0]
         features.append(feat)
 
+    #pickle.dump([images, features], open('image_features.p', 'wb'))
+    #write_csv(images, features)
+
+    logging.debug('Performing PCA. reducing {} -> {}'.format(len(features[0]), n_components))
     features = np.array(features)
     pca = sklearn.decomposition.PCA(n_components=n_components)
     pca.fit(features)
+
+    #pickle.dump([pca], open('pca_model.p', 'wb'))
+
     pca_features = pca.transform(features)
     return pca_features
 
