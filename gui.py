@@ -21,11 +21,17 @@ def select_square(image, nx, ny):
     panel = tk.Label(window, image = tk_image)
     panel.pack(side = "bottom", fill = "both", expand = "yes")
     window.mainloop()
-    logging.debug("Clicking at position {}".format(xy))    
-    x, y = xy
-    width, height = image.size
-    window.destroy()
-    return x / (width / nx), y / (height / ny)
+    logging.debug("Clicking at position {}".format(xy))
+    if xy == []:
+        return False, -1, -1
+    else:
+        x, y = xy
+        width, height = image.size
+        ix = x / (width / nx)
+        iy = y / (height / ny)
+        logging.debug("Position {} -> row={}, col={}".format(xy, ix, iy))
+        window.destroy()
+        return True, ix, iy
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Show picture grid',

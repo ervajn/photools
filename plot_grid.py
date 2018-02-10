@@ -14,7 +14,7 @@ def plot_grid(images, texts=None, tile_size=120):
     full_size = tile_size * n
     grid_image = PIL.Image.new('RGB', (full_size, full_size))
     for i, img in enumerate(images):
-        logging.debug('Image {}({}) {}'.format(i, len(images), img))
+        logging.debug('Adding image {}({}) {}'.format(i, len(images), img))
         x, y = (i % n) * tile_size, (i / n) * tile_size
         tile = PIL.Image.open(img)
         margin = abs((tile.width - tile.height) / 2)
