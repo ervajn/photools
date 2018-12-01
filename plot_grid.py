@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from __future__ import print_function
+from __future__ import division, print_function
 import argparse
 import logging
 import math
@@ -15,9 +15,9 @@ def plot_grid(images, texts=None, tile_size=120):
     grid_image = PIL.Image.new('RGB', (full_size, full_size))
     for i, img in enumerate(images):
         logging.debug('Adding image {}({}) {}'.format(i, len(images), img))
-        x, y = (i % n) * tile_size, (i / n) * tile_size
+        x, y = (i % n) * tile_size, (i // n) * tile_size
         tile = PIL.Image.open(img)
-        margin = abs((tile.width - tile.height) / 2)
+        margin = abs((tile.width - tile.height) // 2)
         if (tile.width > tile.height):
             tile = tile.crop((margin, 0, margin + tile.height, tile.height))
         else:
@@ -25,7 +25,7 @@ def plot_grid(images, texts=None, tile_size=120):
         tile = tile.resize((tile_size, tile_size), PIL.Image.ANTIALIAS)
         draw = PIL.ImageDraw.Draw(tile)
         if texts:
-            for font_height in range(tile_size/5, 1, -1):
+            for font_height in range(tile_size // 5, 1, -1):
                 font = PIL.ImageFont.truetype("/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-B.ttf", font_height)
                 text_width, _ = font.getsize(texts[i])
                 if text_width < tile_size:

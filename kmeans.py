@@ -1,10 +1,14 @@
 #!/usr/bin/env python
-from __future__ import print_function
+from __future__ import print_function, division
 import argparse
 import copy
 import logging
 import math
-import cPickle as pickle
+import sys
+if sys.version_info[0] < 3:
+    import cPickle as pickle
+else:
+    import pickle
 import os
 import sklearn.cluster
 import sklearn.metrics
@@ -20,7 +24,7 @@ def create_grid(images, features, n_clusters):
         os.makedirs(CACHE_DIR)
     path = os.path.join(CACHE_DIR, '{}_{}.p'.format(n_clusters, hex(hash(tuple(images)))[2:]))
     if os.path.exists(path):
-        membership, medoids, grid = pickle.load(open(path, 'r'))
+        membership, medoids, grid = pickle.load(open(path, 'rb'))
         logging.debug('Loaded {}'.format(path))
     else:
         if len(images) < n_clusters:
@@ -102,7 +106,7 @@ def _main():
     level = (logging.WARNING, logging.INFO, logging.DEBUG)[min(args.verbose, 2)]
     logging.basicConfig(level=level)
 
-    images, pca_features = pickle.load(open(args.pca_features_file, 'r'))
+    images, pca_features = pickle.load(open(args.pca_features_file, 'rb'))
 
     if args.interactive:
         selected = interactive(images, pca_features, n_clusters = args.n_clusters)

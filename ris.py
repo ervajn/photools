@@ -9,7 +9,12 @@ import math
 import fnmatch
 import os
 import random
-import cPickle as pickle
+import sys
+if sys.version_info[0] < 3:
+    import cPickle as pickle
+    import rasterfairy
+else:
+    import pickle
 import csv
 import numpy as np
 import matplotlib.pyplot
@@ -21,7 +26,6 @@ import scipy.spatial
 import tqdm
 import PIL
 import sklearn.manifold
-import rasterfairy
 
 def write_csv(images, features):
     with open('image_features.csv', 'wb') as csvfile:
@@ -47,7 +51,7 @@ def find_images(images_path, max_num_images=0):
     images = [os.path.join(dp, f) for dp, dn, filenames in
               os.walk(images_path) for f in filenames if os.path.splitext(f)[1].lower() in ['.jpg','.png','.jpeg']]
     if max_num_images > 0 and max_num_images < len(images):
-        images = [images[i] for i in sorted(random.sample(xrange(len(images)), max_num_images))]
+        images = [images[i] for i in sorted(random.sample(range(len(images)), max_num_images))]
     logging.debug('Using {} images from {}'.format(len(images), images_path))
     return images
 
@@ -76,7 +80,7 @@ def get_pca_features(images_path, pca_features_file):
     if os.path.exists(pca_features_file):
         logging.info('Features file already exists. Loading {} and ignoring images path "{}"'.
                      format(pca_features_file, images_path))
-        images, pca_features = pickle.load(open(pca_features_file, 'r'))
+        images, pca_features = pickle.load(open(pca_features_file, 'rb'))
     else:
         images = find_images(images_path)
         if not images:
@@ -127,7 +131,7 @@ def get_file_index(images, pattern):
 
 def calculate_tsne(images, pca_features, num_images_to_use=4*256):
     if len(images) > num_images_to_use:
-        sort_order = sorted(random.sample(xrange(len(images)), num_images_to_use))
+        sort_order = sorted(random.sample(range(len(images)), num_images_to_use))
         images = [images[i] for i in sort_order]
         pca_features = [pca_features[i] for i in sort_order]
 
@@ -188,10 +192,15 @@ def plot_grid(images, tsne, tx, ty):
 def do_sne(images, pca_features, filenamebase):
     images, tsne, tx, ty = calculate_tsne(images, pca_features)
     tsne_image = plot_tsne(images, tsne, tx, ty)
+    tsne_image = tsne_image.convert('RGB')
     tsne_image.save(filenamebase + '_tsne.jpg')
-    grid_image = plot_grid(images, tsne, tx, ty)
-    grid_image.save(filenamebase + '_grid.jpg')
-    return tsne_image, grid_image
+    if sys.version_info[0] < 3:
+        grid_image = plot_grid(images, tsne, tx, ty)
+        grid_image.save(filenamebase + '_grid.jpg')
+    else:
+        logging.info('No grid image since rasterfairy is not available for Pytyhon3')
+        grid_image = None
+    return [tsne_image, grid_image] if grid_image else [tsne_image]
 
 def show_images(images):
     for i in images:
@@ -233,8 +242,8 @@ def _main():
             images_to_show.append(show_closest_images(pca_features, images, ix))
 
     if args.tsne:
-        tsne, grid = do_sne(images, pca_features, args.tsne)
-        images_to_show += [tsne, grid]
+        ims = do_sne(images, pca_features, args.tsne)
+        images_to_show += ims
 
     if args.show:
         show_images(images_to_show)

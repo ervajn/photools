@@ -1,7 +1,12 @@
 #!/usr/bin/env python
+from __future__ import print_function, division
 import argparse
 import logging
-import Tkinter as tk
+import sys
+if sys.version_info[0] < 3:
+    import Tkinter as tk
+else:
+    import tkinter as tk
 from PIL import Image, ImageTk
 
 def select_square(image, nx, ny):
@@ -27,8 +32,8 @@ def select_square(image, nx, ny):
     else:
         x, y = xy
         width, height = image.size
-        ix = x / (width / nx)
-        iy = y / (height / ny)
+        ix = x // (width // nx)
+        iy = y // (height // ny)
         logging.debug("Position {} -> row={}, col={}".format(xy, ix, iy))
         window.destroy()
         return True, ix, iy
