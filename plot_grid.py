@@ -8,6 +8,16 @@ import PIL
 from PIL import ImageFont
 from PIL import ImageDraw
 
+def get_font(font_height):
+    fonts = ["Ubuntu-B.ttf", "OpenSans-Regular.ttf", "arial.ttf"]
+    for f in fonts:
+        try:
+            return PIL.ImageFont.truetype(f, font_height)
+        except OSError:
+            pass
+    logging.error('No TrueType font available. Tried {}. Using default font'.format(fonts))
+    return PIL.ImageFont.load_default()
+
 
 def plot_grid(images, texts=None, tile_size=120):
     n = int(math.ceil(math.sqrt(len(images))))
@@ -26,7 +36,7 @@ def plot_grid(images, texts=None, tile_size=120):
         draw = PIL.ImageDraw.Draw(tile)
         if texts:
             for font_height in range(tile_size // 5, 1, -1):
-                font = PIL.ImageFont.truetype("/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-B.ttf", font_height)
+                font = get_font(font_height)
                 text_width, _ = font.getsize(texts[i])
                 if text_width < tile_size:
                     break
