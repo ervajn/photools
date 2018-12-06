@@ -34,11 +34,15 @@ def write_csv(images, features):
             csvwriter.writerow([i] + f.tolist())
 
 def get_image(path, target_size):
-    img = keras.preprocessing.image.load_img(path, target_size=target_size)
-    x = keras.preprocessing.image.img_to_array(img)
-    x = np.expand_dims(x, axis=0)
-    x = keras.applications.imagenet_utils.preprocess_input(x)
-    return img, x
+    try:
+        img = keras.preprocessing.image.load_img(path, target_size=target_size)
+        x = keras.preprocessing.image.img_to_array(img)
+        x = np.expand_dims(x, axis=0)
+        x = keras.applications.imagenet_utils.preprocess_input(x)
+        return img, x
+    except:
+        logging.warning("Failed to handle {}".format(path))
+        return None, None
 
 def get_feature_extractor():
     model = keras.applications.VGG16(weights='imagenet', include_top=True)
@@ -57,11 +61,14 @@ def find_images(images_path, max_num_images=0):
 
 def _extract_pca_features(feat_extractor, images, n_components=300):
     logging.debug('Extracting features from {} images'.format(len(images)))
+    result_images = []
     features = []
     for image_path in tqdm.tqdm(images):
         img, x = get_image(image_path, target_size=feat_extractor.input_shape[1:3])
-        feat = feat_extractor.predict(x)[0]
-        features.append(feat)
+        if img:
+            result_images.append(image_path)
+            feat = feat_extractor.predict(x)[0]
+            features.append(feat)
 
     #pickle.dump([images, features], open('image_features.p', 'wb'))
     #write_csv(images, features)
@@ -74,7 +81,7 @@ def _extract_pca_features(feat_extractor, images, n_components=300):
     #pickle.dump([pca], open('pca_model.p', 'wb'))
 
     pca_features = pca.transform(features)
-    return pca_features
+    return result_images, pca_features
 
 def get_pca_features(images_path, pca_features_file):
     if os.path.exists(pca_features_file):
@@ -87,7 +94,7 @@ def get_pca_features(images_path, pca_features_file):
             logging.error('No images found in {}'.format(images_path))
             exit(-1)    
         feat_extractor = get_feature_extractor()
-        pca_features = _extract_pca_features(feat_extractor, images)
+        images, pca_features = _extract_pca_features(feat_extractor, images)
         pickle.dump([images, pca_features], open(pca_features_file, 'wb'))
     return images, pca_features    
 
