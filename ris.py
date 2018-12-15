@@ -26,6 +26,7 @@ import scipy.spatial
 import tqdm
 import PIL
 import sklearn.manifold
+import imageutils
 
 def write_csv(images, features):
     with open('image_features.csv', 'wb') as csvfile:
@@ -35,7 +36,7 @@ def write_csv(images, features):
 
 def get_image(path, target_size):
     try:
-        img = keras.preprocessing.image.load_img(path, target_size=target_size)
+        img = imageutils.load_image(path=path, target_size=target_size)
         x = keras.preprocessing.image.img_to_array(img)
         x = np.expand_dims(x, axis=0)
         x = keras.applications.imagenet_utils.preprocess_input(x)
@@ -53,7 +54,7 @@ def get_feature_extractor():
 
 def find_images(images_path, max_num_images=0):
     images = [os.path.join(dp, f) for dp, dn, filenames in
-              os.walk(images_path) for f in filenames if os.path.splitext(f)[1].lower() in ['.jpg','.png','.jpeg']]
+              os.walk(images_path) for f in filenames if os.path.splitext(f)[1].lower() in imageutils.IMAGE_TYPES]
     if max_num_images > 0 and max_num_images < len(images):
         images = [images[i] for i in sorted(random.sample(range(len(images)), max_num_images))]
     logging.debug('Using {} images from {}'.format(len(images), images_path))
@@ -107,7 +108,7 @@ def get_concatenated_images(images, indexes, thumb_height):
     border = PIL.Image.fromarray(np.full([thumb_height, thumb_height/10, 3], fill_value=255, dtype=np.int8), 'RGB')
     thumbs = []
     for idx in indexes:
-        img = keras.preprocessing.image.load_img(images[idx])
+        img = imageutils.load_img(images[idx])
         img = img.resize((int(img.width * thumb_height / img.height), thumb_height))
         thumbs.append(img)
         if len(thumbs) == 1:
@@ -158,7 +159,7 @@ def plot_tsne(images, tsne, tx, ty):
 
     full_image = PIL.Image.new('RGBA', (width, height))
     for img, x, y in tqdm.tqdm(zip(images, tx, ty)):
-        tile = PIL.Image.open(img)
+        tile = imageutils.load_image(img)
         rs = max(1, tile.width/max_dim, tile.height/max_dim)
         tile = tile.resize((int(tile.width/rs), int(tile.height/rs)), PIL.Image.ANTIALIAS)
         full_image.paste(tile, (int((width-max_dim)*x), int((height-max_dim)*y)), mask=tile.convert('RGBA'))
@@ -183,7 +184,7 @@ def plot_grid(images, tsne, tx, ty):
     for img, grid_pos in tqdm.tqdm(zip(images, grid_assignment[0].tolist())):
         idx_x, idx_y = grid_pos
         x, y = tile_width * idx_x, tile_height * idx_y
-        tile = PIL.Image.open(img)
+        tile = imageutils.load_image(img)
         tile_ar = float(tile.width) / tile.height  # center-crop the tile to match aspect_ratio
         if (tile_ar > aspect_ratio):
             margin = 0.5 * (tile.width - aspect_ratio * tile.height)

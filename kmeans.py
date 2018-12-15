@@ -17,6 +17,7 @@ import gui
 
 import plot_grid
 
+
 CACHE_DIR='./cache.tmp'
 
 def create_grid(images, features, n_clusters):

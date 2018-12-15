@@ -7,6 +7,7 @@ import os
 import PIL
 from PIL import ImageFont
 from PIL import ImageDraw
+import imageutils
 
 def get_font(font_height):
     fonts = ["Ubuntu-B.ttf", "OpenSans-Regular.ttf", "arial.ttf"]
@@ -26,7 +27,7 @@ def plot_grid(images, texts=None, tile_size=120):
     for i, img in enumerate(images):
         logging.debug('Adding image {}({}) {}'.format(i, len(images), img))
         x, y = (i % n) * tile_size, (i // n) * tile_size
-        tile = PIL.Image.open(img)
+        tile = imageutils.load_image(img)
         margin = abs((tile.width - tile.height) // 2)
         if (tile.width > tile.height):
             tile = tile.crop((margin, 0, margin + tile.height, tile.height))
