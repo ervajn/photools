@@ -41,16 +41,25 @@ def get_image(path, target_size):
         x = np.expand_dims(x, axis=0)
         x = keras.applications.imagenet_utils.preprocess_input(x)
         return img, x
-    except:
-        logging.warning("Failed to handle {}".format(path))
+    except Exception as e:
+        logging.warning("Failed to handle {} ({})".format(path, e))
         return None, None
 
-def get_feature_extractor():
-    model = keras.applications.VGG16(weights='imagenet', include_top=True)
-    #model = keras.applications.VGG19(weights='imagenet', include_top=True)
-    logging.debug("Output layer: {}".format(model.get_layer("fc2").output))
-    feat_extractor = keras.models.Model(inputs=model.input, outputs=model.get_layer("fc2").output)
-    return feat_extractor
+# See https://keras.io/applications/
+Models = {'Xception': (keras.applications.xception.Xception, (299, 299), 'avg_pool'),
+          'VGG16': (keras.applications.VGG16, (224, 224), 'fc2'),
+          'VGG19': (keras.applications.VGG19, (224, 224), 'fc2'),
+          'InceptionV3': (keras.applications.inception_v3.InceptionV3, (299, 299), 'avg_pool'),
+          'InceptionResNetV2': (keras.applications.inception_resnet_v2.InceptionResNetV2, (299, 299), 'avg_pool'),
+          'MobileNetV2': (keras.applications.mobilenet_v2.MobileNetV2, (224, 224), 'global_average_pooling2d_1')}
+def get_feature_extractor(model_name='VGG16'):
+    f, input_shape, output_layer = Models[model_name]
+    model = f(include_top=True, weights='imagenet')
+    model.summary(print_fn=logging.debug)
+    logging.debug("Using model '{}'. Input shape: {}, Output layer: {}".
+                  format(model_name, input_shape, model.get_layer(output_layer).output))
+    feat_extractor = keras.models.Model(inputs=model.input, outputs=model.get_layer(output_layer).output)
+    return feat_extractor, input_shape
 
 def find_images(images_path, max_num_images=0):
     images = [os.path.join(dp, f) for dp, dn, filenames in
@@ -60,12 +69,12 @@ def find_images(images_path, max_num_images=0):
     logging.debug('Using {} images from {}'.format(len(images), images_path))
     return images
 
-def _extract_pca_features(feat_extractor, images, n_components=300):
+def _extract_pca_features(feat_extractor, input_shape, images, n_components=300):
     logging.debug('Extracting features from {} images'.format(len(images)))
     result_images = []
     features = []
     for image_path in tqdm.tqdm(images):
-        img, x = get_image(image_path, target_size=feat_extractor.input_shape[1:3])
+        img, x = get_image(image_path, target_size=input_shape)
         if img:
             result_images.append(image_path)
             feat = feat_extractor.predict(x)[0]
@@ -84,7 +93,7 @@ def _extract_pca_features(feat_extractor, images, n_components=300):
     pca_features = pca.transform(features)
     return result_images, pca_features
 
-def get_pca_features(images_path, pca_features_file):
+def get_pca_features(images_path, pca_features_file, model_name):
     if os.path.exists(pca_features_file):
         logging.info('Features file already exists. Loading {} and ignoring images path "{}"'.
                      format(pca_features_file, images_path))
@@ -94,8 +103,8 @@ def get_pca_features(images_path, pca_features_file):
         if not images:
             logging.error('No images found in {}'.format(images_path))
             exit(-1)    
-        feat_extractor = get_feature_extractor()
-        images, pca_features = _extract_pca_features(feat_extractor, images)
+        feat_extractor, input_shape = get_feature_extractor(model_name)
+        images, pca_features = _extract_pca_features(feat_extractor, input_shape, images)
         pickle.dump([images, pca_features], open(pca_features_file, 'wb'))
     return images, pca_features    
 
@@ -220,16 +229,16 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Calculate image features',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-v', '--verbose', action='count')
+    parser.add_argument('-m', '--model', default='VGG16',
+                        help='The model to use. Valid models: {}'.format(" ".join(Models)))
     parser.add_argument('-i', '--images_path', default='.',
                         help='The directory with photos')
     parser.add_argument('-p', '--pca_features_file', default='pca_features.p',
                         help='The PCA features file name')
     parser.add_argument('-x', '--index', default='',
                         help='Find closest images to this image')
-
     parser.add_argument('-t', '--tsne', default='',
                         help='Filename to save TSNE image')
-
     parser.add_argument('-s', '--show', action='store_true',
                         help='Show the resulting images')
     
@@ -241,7 +250,7 @@ def _main():
     level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(level=level)
     
-    images, pca_features = get_pca_features(args.images_path, args.pca_features_file)
+    images, pca_features = get_pca_features(args.images_path, args.pca_features_file, args.model)
     images_to_show = []
     
     if args.index:
