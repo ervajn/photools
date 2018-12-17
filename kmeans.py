@@ -25,7 +25,7 @@ def create_grid(images, features, n_clusters):
     if not os.path.exists(CACHE_DIR):
         os.makedirs(CACHE_DIR)
     path = os.path.join(CACHE_DIR, '{}_{}_{}.p'.format(n_clusters, len(images),
-                                                       hashlib.md5("".join(sorted(images))).hexdigest()))
+                                                       hashlib.md5("".join(sorted(images)).encode('utf-8')).hexdigest()))
     if os.path.exists(path):
         membership, medoids, grid = pickle.load(open(path, 'rb'))
         logging.debug('Loaded {}'.format(path))
