@@ -2,7 +2,6 @@
 from __future__ import print_function, division
 import argparse
 import copy
-import hashlib
 import logging
 import math
 import sys
@@ -24,8 +23,8 @@ CACHE_DIR='./cache.tmp'
 def create_grid(images, features, n_clusters):
     if not os.path.exists(CACHE_DIR):
         os.makedirs(CACHE_DIR)
-    path = os.path.join(CACHE_DIR, '{}_{}_{}.p'.format(n_clusters, len(images),
-                                                       hashlib.md5("".join(sorted(images)).encode('utf-8')).hexdigest()))
+    imstr = "".join(sorted(images))
+    path = os.path.join(CACHE_DIR, '{}_{}_{}.p'.format(n_clusters, len(images), hex(abs(hash(imstr)))[2:]))
     if os.path.exists(path):
         membership, medoids, grid = pickle.load(open(path, 'rb'))
         logging.debug('Loaded {}'.format(path))
