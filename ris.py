@@ -80,15 +80,10 @@ def _extract_pca_features(feat_extractor, input_shape, images, n_components=300)
             feat = feat_extractor.predict(x)[0]
             features.append(feat)
 
-    #pickle.dump([images, features], open('image_features.p', 'wb'))
-    #write_csv(images, features)
-
     logging.debug('Performing PCA. reducing {} -> {}'.format(len(features[0]), n_components))
     features = np.array(features)
     pca = sklearn.decomposition.PCA(n_components=n_components)
     pca.fit(features)
-
-    #pickle.dump([pca], open('pca_model.p', 'wb'))
 
     pca_features = pca.transform(features)
     return result_images, pca_features
@@ -97,7 +92,8 @@ def get_pca_features(images_path, pca_features_file, model_name):
     if os.path.exists(pca_features_file):
         logging.info('Features file already exists. Loading {} and ignoring images path "{}"'.
                      format(pca_features_file, images_path))
-        images, pca_features = pickle.load(open(pca_features_file, 'rb'))
+        with open(pca_features_file, 'rb') as f:
+            images, pca_features = pickle.load(f)
     else:
         images = find_images(images_path)
         if not images:
@@ -105,7 +101,8 @@ def get_pca_features(images_path, pca_features_file, model_name):
             exit(-1)    
         feat_extractor, input_shape = get_feature_extractor(model_name)
         images, pca_features = _extract_pca_features(feat_extractor, input_shape, images)
-        pickle.dump([images, pca_features], open(pca_features_file, 'wb'))
+        with open(pca_features_file, 'wb') as f:
+            pickle.dump([images, pca_features], f)
     return images, pca_features    
 
 def get_closest_images(pca_features, query_image_idx, num_results=5):

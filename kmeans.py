@@ -27,7 +27,8 @@ def create_grid(images, features, n_clusters):
     imstr = "".join(sorted(images)) if sys.version_info[0] < 3 else "".join(sorted(images)).encode()
     path = os.path.join(CACHE_DIR, '{}_{}_{}.p'.format(n_clusters, len(images), hashlib.md5(imstr).hexdigest()))
     if os.path.exists(path):
-        membership, medoids, grid = pickle.load(open(path, 'rb'))
+        with open(path, 'rb') as f:
+            membership, medoids, grid = pickle.load(f)
         logging.debug('Loaded {}'.format(path))
     else:
         if len(images) < n_clusters:
@@ -37,7 +38,8 @@ def create_grid(images, features, n_clusters):
             membership, medoids = do_kmeans(features, n_clusters)
         text = [str(membership.tolist().count(i)) for i,_ in enumerate(medoids)] if membership != [] else None
         grid = plot_grid.plot_grid([images[x] for x in medoids], text, 200)
-        pickle.dump([membership, medoids, grid], open(path, 'wb'))
+        with open(path, 'wb') as f:
+            pickle.dump([membership, medoids, grid], f)
         logging.debug('Wrote {}'.format(path))
 
     return membership, medoids, grid
@@ -109,7 +111,8 @@ def _main():
     level = (logging.WARNING, logging.INFO, logging.DEBUG)[min(args.verbose, 2)]
     logging.basicConfig(level=level)
 
-    images, pca_features = pickle.load(open(args.pca_features_file, 'rb'))
+    with open(args.pca_features_file, 'rb') as f:
+        images, pca_features = pickle.load(f)
 
     if args.interactive:
         selected = interactive(images, pca_features, n_clusters = args.n_clusters)
