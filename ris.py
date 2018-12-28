@@ -4,6 +4,7 @@ https://github.com/ml4a/ml4a-guides/blob/master/notebooks/image-search.ipynb
 https://github.com/ml4a/ml4a-guides/blob/master/notebooks/image-tsne.ipynb
 """
 import argparse
+import gzip
 import logging
 import math
 import fnmatch
@@ -66,10 +67,10 @@ def find_images(images_path, max_num_images=0):
               os.walk(images_path) for f in filenames if os.path.splitext(f)[1].lower() in imageutils.IMAGE_TYPES]
     if max_num_images > 0 and max_num_images < len(images):
         images = [images[i] for i in sorted(random.sample(range(len(images)), max_num_images))]
-    logging.debug('Using {} images from {}'.format(len(images), images_path))
+    logging.debug('Found {} images in "{}"'.format(len(images), images_path))
     return images
 
-def _extract_pca_features(feat_extractor, input_shape, images, n_components=300):
+def _extract_features(feat_extractor, input_shape, images):
     logging.debug('Extracting features from {} images'.format(len(images)))
     result_images = []
     features = []
@@ -78,31 +79,46 @@ def _extract_pca_features(feat_extractor, input_shape, images, n_components=300)
         if img:
             result_images.append(image_path)
             feat = feat_extractor.predict(x)[0]
+            # feat = feat.astype(np.half)
             features.append(feat)
 
-    logging.debug('Performing PCA. reducing {} -> {}'.format(len(features[0]), n_components))
-    features = np.array(features)
+    return result_images, features
+
+def _do_pca(features, n_components):
+    logging.debug('Performing PCA with {} images. reducing {} -> {}'.format(len(features), features[0].shape[0], n_components))
     pca = sklearn.decomposition.PCA(n_components=n_components)
     pca.fit(features)
-
-    pca_features = pca.transform(features)
-    return result_images, pca_features
+    return pca.transform(features)
 
 def get_pca_features(images_path, pca_features_file, model_name):
     if os.path.exists(pca_features_file):
-        logging.info('Features file already exists. Loading {} and ignoring images path "{}"'.
-                     format(pca_features_file, images_path))
-        with open(pca_features_file, 'rb') as f:
-            images, pca_features = pickle.load(f)
+        logging.info('Loading features file {}'.format(pca_features_file))
+        with gzip.open(pca_features_file, 'rb') as f:
+            old_model_name, images, features, pca_features = pickle.load(f)
+        logging.debug('Loaded {} images with features by "{}" from {}'.format(len(images), old_model_name, pca_features_file))
+        if model_name != old_model_name:
+            logging.warning('Found model "{}" in file {} but wanted "{}". Using "{}".'
+                            .format(old_model_name, pca_features_file, model_name, old_model_name))
+            model_name = old_model_name
     else:
-        images = find_images(images_path)
-        if not images:
-            logging.error('No images found in {}'.format(images_path))
-            exit(-1)    
-        feat_extractor, input_shape = get_feature_extractor(model_name)
-        images, pca_features = _extract_pca_features(feat_extractor, input_shape, images)
-        with open(pca_features_file, 'wb') as f:
-            pickle.dump([images, pca_features], f)
+        images, features = [], []
+
+    if images_path:
+        new_images = [x for x in find_images(images_path) if x not in set(images)]
+        if new_images == []:
+            logging.info('No (new) images found in "{}"'.format(images_path))
+        else:
+            logging.info('Found {} new images in "{}"'.format(len(new_images), images_path))
+            feat_extractor, input_shape = get_feature_extractor(model_name)
+            new_images, new_features = _extract_features(feat_extractor, input_shape, new_images)
+            images.extend(new_images)
+            features.extend(new_features)
+            pca_features = _do_pca(features, n_components=300)
+            if os.path.exists(pca_features_file):
+                os.rename(pca_features_file, pca_features_file + ".save")
+            with gzip.open(pca_features_file, 'wb') as f:
+                pickle.dump([model_name, images, features, pca_features], f)
+
     return images, pca_features    
 
 def get_closest_images(pca_features, query_image_idx, num_results=5):
@@ -230,7 +246,7 @@ def parse_arguments():
                         help='The model to use. Valid models: {}'.format(" ".join(Models)))
     parser.add_argument('-i', '--images_path', default='.',
                         help='The directory with photos')
-    parser.add_argument('-p', '--pca_features_file', default='pca_features.p',
+    parser.add_argument('-p', '--pca_features_file', default='pca_features.p.gz',
                         help='The PCA features file name')
     parser.add_argument('-x', '--index', default='',
                         help='Find closest images to this image')

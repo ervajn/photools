@@ -2,6 +2,7 @@
 from __future__ import print_function, division
 import argparse
 import copy
+import gzip
 import hashlib
 import logging
 import math
@@ -91,7 +92,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Classify images using K-means',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-v', '--verbose', action='count', default=0)
-    parser.add_argument('-p', '--pca_features_file', default='pca_features.p',
+    parser.add_argument('-p', '--pca_features_file', default='pca_features.p.gz',
                         help='The PCA features file name')
     parser.add_argument('-f', '--file', default='grid.jpg',
                         help='Resulting grid image file name')   
@@ -111,8 +112,10 @@ def _main():
     level = (logging.WARNING, logging.INFO, logging.DEBUG)[min(args.verbose, 2)]
     logging.basicConfig(level=level)
 
-    with open(args.pca_features_file, 'rb') as f:
-        images, pca_features = pickle.load(f)
+    logging.debug('Loading {}'.format(args.pca_features_file))
+    with gzip.open(args.pca_features_file, 'rb') as f:
+        model_name, images, _, pca_features = pickle.load(f)
+    logging.debug('Loaded {} images parsed by model "{}"'.format(len(images), model_name))
 
     if args.interactive:
         selected = interactive(images, pca_features, n_clusters = args.n_clusters)
